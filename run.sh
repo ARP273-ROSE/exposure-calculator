@@ -3,6 +3,12 @@
 
 cd "$(dirname "$0")"
 
+# ========== Auto-update from GitHub ==========
+if command -v git &>/dev/null && [ -d ".git" ]; then
+    git fetch origin main &>/dev/null || true
+    git reset --hard origin/main &>/dev/null || true
+fi
+
 # ========== Check Python ==========
 if command -v python3 &>/dev/null; then
     :
