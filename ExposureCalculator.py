@@ -6,10 +6,10 @@ Ideal Sub-Exposure Time Calculator
 Cross-platform, auto-install, auto-language.
 """
 
-__version__ = "1.00"
+__version__ = "1.01"
 __author__ = "©Benoit_SAINTOT — GUI by NGC4565"
 
-import subprocess, sys, importlib, os, math, locale, platform, webbrowser, json
+import subprocess, sys, importlib, os, math, locale, platform, webbrowser, json, threading
 from pathlib import Path
 
 def _ensure_package(pip_name, import_name=None):
@@ -138,6 +138,9 @@ def _init_translations():
         "tbl_lrgb":{"fr":"Table — L / RGB","en":"Table — L / RGB"}, "tbl_nb":{"fr":"Table — Narrowband","en":"Table — Narrowband"},
         "tbl_exp":{"fr":"Temps (s)","en":"Time (s)"}, "tbl_thresh":{"fr":"Seuil","en":"Threshold"},
         "help_title":{"fr":"Aide — Theorie et mode d'emploi","en":"Help — Theory and user guide"},
+        "update_available":{"fr":"Mise a jour disponible","en":"Update available"},
+        "update_restart":{"fr":"La version {v} a ete installee. Redemarrez l'application pour en profiter.","en":"Version {v} has been installed. Restart the application to use it."},
+        "update_manual":{"fr":"La version {v} est disponible.\nTelechargez-la depuis :\n{url}","en":"Version {v} is available.\nDownload it from:\n{url}"},
     }
 _init_translations()
 def tr(key, lang): return T.get(key,{}).get(lang, key)
@@ -624,12 +627,59 @@ def _create_shortcut():
             (d/f"{n.lower()}.desktop").write_text(f"[Desktop Entry]\nType=Application\nName={n}\nExec=python3 {s}\nTerminal=false\nCategories=Science;\n",encoding="utf-8")
         except: pass
 
+_UPDATE_URL = "https://raw.githubusercontent.com/NGC4565/ExposureCalculator/main/ExposureCalculator.py"
+_REPO_URL = "https://github.com/NGC4565/ExposureCalculator"
+
+def _parse_version(v):
+    try: return tuple(int(x) for x in v.strip().split("."))
+    except: return (0,)
+
+def _check_for_update(root, lang):
+    def _worker():
+        try:
+            from urllib.request import urlopen, Request
+            req = Request(_UPDATE_URL, headers={"User-Agent": "ExposureCalculator"})
+            data = urlopen(req, timeout=10).read(2048).decode("utf-8", errors="ignore")
+            remote_ver = None
+            for line in data.splitlines():
+                if line.startswith("__version__"):
+                    remote_ver = line.split("=")[1].strip().strip('"').strip("'")
+                    break
+            if not remote_ver:
+                return
+            if _parse_version(remote_ver) <= _parse_version(__version__):
+                return
+            has_git = os.path.isdir(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".git"))
+            git_ok = False
+            if has_git:
+                try:
+                    cwd = os.path.dirname(os.path.abspath(__file__))
+                    subprocess.check_call(["git", "fetch", "origin", "main"], cwd=cwd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    subprocess.check_call(["git", "reset", "--hard", "origin/main"], cwd=cwd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    git_ok = True
+                except Exception:
+                    pass
+            def _notify():
+                from tkinter import messagebox
+                title = tr("update_available", lang)
+                if git_ok:
+                    msg = tr("update_restart", lang).format(v=remote_ver)
+                else:
+                    msg = tr("update_manual", lang).format(v=remote_ver, url=_REPO_URL)
+                messagebox.showinfo(title, msg)
+            root.after(0, _notify)
+        except Exception:
+            pass
+    t = threading.Thread(target=_worker, daemon=True)
+    t.start()
+
 def main():
     if platform.system()=="Windows":
         try:
             from ctypes import windll; windll.shcore.SetProcessDpiAwareness(1)
         except: pass
-    root=tk.Tk(); App(root)
+    root=tk.Tk(); app=App(root)
+    _check_for_update(root, app.lang)
     m=Path.home()/".exposure_calc_installed"
     if not m.exists():
         try: _create_shortcut(); m.touch()

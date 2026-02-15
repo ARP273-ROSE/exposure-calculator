@@ -3,6 +3,15 @@ chcp 65001 >nul
 cd /d "%~dp0"
 setlocal EnableDelayedExpansion
 
+:: ========== Auto-update from GitHub ==========
+where git >nul 2>&1
+if %ERRORLEVEL%==0 (
+    if exist ".git" (
+        git fetch origin main >nul 2>&1
+        git reset --hard origin/main >nul 2>&1
+    )
+)
+
 :: ========== Check Python ==========
 where python >nul 2>&1
 if %ERRORLEVEL%==0 goto :run_python
