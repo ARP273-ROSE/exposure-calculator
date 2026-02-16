@@ -234,6 +234,37 @@ II. MODE D'EMPLOI
   COMPARAISON: Comparer 2 strategies en L et RGB.
   GRAPHIQUES: Courbes bruit vs temps de pose.
   TABLES: Tableaux complets (vert = sous seuil).
+
+III. MISE A JOUR AUTOMATIQUE
+-----------------------------
+  L'application se met a jour automatiquement :
+
+  VIA LES LANCEURS (run.bat / run.sh):
+    A chaque lancement, le script execute silencieusement
+    git fetch + git reset pour recuperer la derniere version.
+    Necessite git installe et un clone du depot (pas un zip).
+
+  VIA PYTHON (fallback):
+    Si vous lancez directement ExposureCalculator.py, un thread
+    verifie en arriere-plan si une nouvelle version existe sur
+    GitHub. Si oui :
+    - Avec git : mise a jour automatique, message de redemarrage.
+    - Sans git : lien de telechargement affiche.
+    En cas d'absence d'internet, l'application demarre normalement.
+
+IV. SIGNALEMENT DE BUGS
+-------------------------
+  AUTOMATIQUE:
+    Toute erreur non geree est enregistree dans le fichier :
+      ~/.exposure_calc_errors.log
+    Format : date, version, OS, Python, traceback complet.
+    Le fichier est automatiquement tronque au-dela de 500 Ko.
+
+  MANUEL:
+    Cliquer sur le bouton rouge "Signaler un bug" dans la barre
+    de boutons. Un rapport pre-rempli s'ouvre sur GitHub Issues
+    avec l'environnement et la derniere erreur enregistree.
+    Il suffit de decrire le probleme et de valider.
 """
 
 HELP_EN = """EXPOSURE TIME CALCULATOR — COMPLETE HELP  (c)Benoit_SAINTOT
@@ -279,6 +310,36 @@ II. USER GUIDE
   COMPARISON: Compare 2 strategies in L and RGB.
   CHARTS: Noise curves vs exposure time.
   TABLES: Complete tables (green = below threshold).
+
+III. AUTOMATIC UPDATES
+-----------------------
+  The application updates itself automatically:
+
+  VIA LAUNCHERS (run.bat / run.sh):
+    On each launch, the script silently runs git fetch + git reset
+    to pull the latest version. Requires git installed and a
+    cloned repository (not a zip download).
+
+  VIA PYTHON (fallback):
+    If you run ExposureCalculator.py directly, a background thread
+    checks GitHub for a newer version. If found:
+    - With git: automatic update, restart message shown.
+    - Without git: download link displayed.
+    If there is no internet, the app starts normally.
+
+IV. BUG REPORTING
+------------------
+  AUTOMATIC:
+    All unhandled errors are logged to:
+      ~/.exposure_calc_errors.log
+    Format: date, version, OS, Python, full traceback.
+    The file is automatically truncated beyond 500 KB.
+
+  MANUAL:
+    Click the red "Report a bug" button in the top bar.
+    A pre-filled report opens on GitHub Issues with your
+    environment info and the last logged error.
+    Just describe the problem and submit.
 """
 
 # === CALCULATIONS ===
