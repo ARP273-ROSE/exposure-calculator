@@ -6,11 +6,54 @@ Ideal Sub-Exposure Time Calculator
 Cross-platform, auto-install, auto-language.
 """
 
-__version__ = "1.01"
+__version__ = "1.03"
 __author__ = "©Benoit_SAINTOT — GUI by NGC4565"
 
-import subprocess, sys, importlib, os, math, locale, platform, webbrowser, json, threading
+import subprocess, sys, importlib, os, math, locale, platform, webbrowser, json, threading, re, traceback
+from datetime import datetime
 from pathlib import Path
+
+# === ERROR LOGGING ===
+_LOG_PATH = Path.home() / ".exposure_calc_errors.log"
+_LOG_MAX_BYTES = 512_000  # 500 KB
+
+def _log_error(exc_type=None, exc_value=None, exc_tb=None):
+    try:
+        if exc_type is None:
+            exc_type, exc_value, exc_tb = sys.exc_info()
+        if exc_type is None:
+            return
+        tb_text = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
+        entry = (
+            f"[{datetime.now().isoformat(timespec='seconds')}] "
+            f"v{__version__} | {platform.system()} {platform.release()} | "
+            f"Python {sys.version.split()[0]}\n{tb_text}\n"
+        )
+        # Truncate log if too large
+        if _LOG_PATH.exists() and _LOG_PATH.stat().st_size > _LOG_MAX_BYTES:
+            lines = _LOG_PATH.read_text(encoding="utf-8", errors="replace").splitlines(True)
+            half = len(lines) // 2
+            _LOG_PATH.write_text("".join(lines[half:]), encoding="utf-8")
+        with open(_LOG_PATH, "a", encoding="utf-8") as f:
+            f.write(entry)
+    except Exception:
+        pass  # Logging must never crash the app
+
+def _excepthook(exc_type, exc_value, exc_tb):
+    _log_error(exc_type, exc_value, exc_tb)
+    sys.__excepthook__(exc_type, exc_value, exc_tb)
+
+sys.excepthook = _excepthook
+
+def _get_last_error():
+    try:
+        if not _LOG_PATH.exists():
+            return None
+        text = _LOG_PATH.read_text(encoding="utf-8", errors="replace")
+        blocks = text.strip().split("\n\n")
+        return blocks[-1].strip() if blocks else None
+    except Exception:
+        return None
 
 def _ensure_package(pip_name, import_name=None):
     import_name = import_name or pip_name
@@ -18,7 +61,7 @@ def _ensure_package(pip_name, import_name=None):
     except ImportError:
         print(f"[setup] Installing {pip_name}...")
         try: subprocess.check_call([sys.executable,"-m","pip","install","--quiet",pip_name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        except: subprocess.check_call([sys.executable,"-m","pip","install","--quiet","--break-system-packages",pip_name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception: subprocess.check_call([sys.executable,"-m","pip","install","--quiet","--break-system-packages",pip_name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         importlib.invalidate_caches()
 
 _ensure_package("matplotlib")
@@ -138,6 +181,8 @@ def _init_translations():
         "tbl_lrgb":{"fr":"Table — L / RGB","en":"Table — L / RGB"}, "tbl_nb":{"fr":"Table — Narrowband","en":"Table — Narrowband"},
         "tbl_exp":{"fr":"Temps (s)","en":"Time (s)"}, "tbl_thresh":{"fr":"Seuil","en":"Threshold"},
         "help_title":{"fr":"Aide — Theorie et mode d'emploi","en":"Help — Theory and user guide"},
+        "btn_bug":{"fr":"Signaler un bug","en":"Report a bug"},
+        "bug_no_errors":{"fr":"Aucune erreur enregistree. Si vous rencontrez un probleme, decrivez-le dans le rapport qui va s'ouvrir.","en":"No errors logged. If you have an issue, describe it in the report that will open."},
         "update_available":{"fr":"Mise a jour disponible","en":"Update available"},
         "update_restart":{"fr":"La version {v} a ete installee. Redemarrez l'application pour en profiter.","en":"Version {v} has been installed. Restart the application to use it."},
         "update_manual":{"fr":"La version {v} est disponible.\nTelechargez-la depuis :\n{url}","en":"Version {v} is available.\nDownload it from:\n{url}"},
@@ -286,12 +331,12 @@ class App:
     @property
     def sky_NB3(self):
         try: return self.v_sky_NB12.get()/4.0
-        except: return 0.03
+        except Exception: return 0.03
     def _sky(self,k):
         m={"sky_L":self.v_sky_L,"sky_RGB":self.v_sky_RGB,"sky_NB12":self.v_sky_NB12,"sky_NB7":self.v_sky_NB7}
         if k=="sky_NB3": return self.sky_NB3
         try: return m[k].get()
-        except: return 0
+        except Exception: return 0
     def _sched(self):
         if self._recalc_id: self.root.after_cancel(self._recalc_id)
         self._recalc_id = self.root.after(150, self._recalc)
@@ -307,10 +352,16 @@ class App:
         c.create_window((0,0),window=inner,anchor="nw",tags="inner"); c.configure(yscrollcommand=sb.set)
         c.bind("<Configure>",lambda e:c.itemconfig("inner",width=e.width))
         def w(e):
-            d=-1*e.delta if platform.system()=="Darwin" else int(-1*(e.delta/120))
-            c.yview_scroll(d,"units")
+            if e.num == 4: c.yview_scroll(-1, "units")
+            elif e.num == 5: c.yview_scroll(1, "units")
+            elif platform.system()=="Darwin": c.yview_scroll(-1*e.delta, "units")
+            else: c.yview_scroll(int(-1*(e.delta/120)), "units")
         c.bind("<MouseWheel>",w); inner.bind("<MouseWheel>",w)
-        def ba(ww): ww.bind("<MouseWheel>",w);[ba(ch) for ch in ww.winfo_children()]
+        c.bind("<Button-4>",w); inner.bind("<Button-4>",w)
+        c.bind("<Button-5>",w); inner.bind("<Button-5>",w)
+        def ba(ww):
+            ww.bind("<MouseWheel>",w); ww.bind("<Button-4>",w); ww.bind("<Button-5>",w)
+            for ch in ww.winfo_children(): ba(ch)
         inner.bind("<Map>",lambda e:ba(inner)); c.pack(side="left",fill="both",expand=True); sb.pack(side="right",fill="y")
         return inner
 
@@ -329,7 +380,7 @@ class App:
         tk.Label(top,text="  ",font=("Helvetica",18),bg=CL["bg2"],fg=CL["accent"]).grid(row=0,column=0,padx=(10,2))
         tk.Label(top,text=self._t("win_title"),font=("Helvetica",12,"bold"),fg=CL["accent"],bg=CL["bg2"]).grid(row=0,column=1,sticky="w",padx=4)
         bf=tk.Frame(top,bg=CL["bg2"]); bf.grid(row=0,column=2,padx=8,sticky="e")
-        for txt,cmd,bg in [(self._t("recalc"),self._recalc,CL["green"]),(self._t("export"),self._export,CL["accent2"]),(self._t("lang_btn"),self._toggle_lang,CL["purple"])]:
+        for txt,cmd,bg in [(self._t("recalc"),self._recalc,CL["green"]),(self._t("export"),self._export,CL["accent2"]),(self._t("btn_bug"),self._report_bug,CL["red"]),(self._t("lang_btn"),self._toggle_lang,CL["purple"])]:
             tk.Button(bf,text=txt,command=cmd,font=("Helvetica",9,"bold"),bg=bg,fg=CL["bg"],activebackground=bg,activeforeground=CL["white"],relief="flat",padx=10,pady=2,cursor="hand2",bd=0).pack(side="left",padx=3)
         tk.Label(r,text=self._t("fill_yellow"),font=("Helvetica",9),bg=CL["accent"],fg=CL["bg"],pady=2).pack(fill="x")
         self.nb=ttk.Notebook(r); self.nb.pack(fill="both",expand=True,padx=6,pady=(3,6))
@@ -442,7 +493,7 @@ class App:
         def _on_resize(e):
             try:
                 if self.nb.index(self.nb.select())!=self._chart_tab_idx: return
-            except: return
+            except Exception: return
             if self._resize_id: self.root.after_cancel(self._resize_id)
             self._resize_id=self.root.after(200, self._redraw_if_size_changed)
         p.bind("<Configure>",_on_resize)
@@ -451,7 +502,7 @@ class App:
             idx=self.nb.index(self.nb.select())
             if idx==self._chart_tab_idx and self._charts_dirty:
                 self.root.after(80, self._draw_charts_now)
-        except: pass
+        except Exception: pass
     def _redraw_if_size_changed(self):
         self._chart_box.update_idletasks()
         w,h=self._chart_box.winfo_width(),self._chart_box.winfo_height()
@@ -501,6 +552,10 @@ class App:
             ax.legend(fontsize=8,facecolor=CL["bg2"],edgecolor=CL["border"],labelcolor=CL["text"])
             ax.tick_params(colors=CL["dim"],labelsize=8); ax.grid(True,alpha=0.15,color=CL["dim"])
             for sp in ax.spines.values(): sp.set_color(CL["border"])
+        if hasattr(self, '_chart_fig') and self._chart_fig is not None:
+            try: self._chart_fig.clf(); import matplotlib.pyplot as plt; plt.close(self._chart_fig)
+            except Exception: pass
+        self._chart_fig = fig
         c=FigureCanvasTkAgg(fig,master=self._chart_box); c.draw()
         cw=c.get_tk_widget()
         cw.config(width=fig_w_px, height=fig_h_px)
@@ -560,40 +615,40 @@ class App:
 
     def _recalc(self,*_):
         try: rn=self.v_rn.get();ge=self.v_ge.get();bits=self.v_bits.get();off=self.v_offset.get();sf=self.v_sf.get();npct=self.v_noise_pct.get()
-        except: return
+        except Exception: return
         if rn<=0 or ge<=0: return
         try: self._r_nb3.config(text=f"{self.sky_NB3:.4f}")
-        except: pass
+        except Exception: pass
         try:
             self._r_sf["SF x3"].config(text=str(target_median(3,rn,ge,off,bits)))
             self._r_sf["SF xN"].config(text=str(target_median(sf,rn,ge,off,bits)))
             self._r_sf["SF x10"].config(text=str(target_median(10,rn,ge,off,bits)))
-        except: pass
+        except Exception: pass
         try:
             cf=c_factor(npct); self._r_c.config(text=f"{cf:.1f}" if cf<1e6 else "inf")
             for fn,sk in FILTERS:
                 t=optimal_time(cf,rn,self._sky(sk)); ls,lm=self._r_opti[fn]
                 if t==float("inf"): ls.config(text="inf"); lm.config(text="--")
                 else: ls.config(text=f"{t} s"); lm.config(text=sec_to_mmss(t))
-        except: pass
+        except Exception: pass
         try:
             for fn,sk in FILTERS:
                 n=additional_noise(self.v_exp[fn].get(),self._sky(sk),rn); self._r_gl[fn].config(text=f"{n*100:.2f} %")
-        except: pass
+        except Exception: pass
         try:
             sL,sR=self._sky("sky_L"),self._sky("sky_RGB")
             n1=additional_noise(self.v_cL1.get(),sL,rn); n2=additional_noise(self.v_cL2.get(),sL,rn)
             self._rl["ndL1"].config(text=f"{n1*100:.3f}%"); self._rl["ndL2"].config(text=f"{n2*100:.3f}%"); self._rl["dL"].config(text=f"{(n2-n1)*100:+.4f}%")
             n1=additional_noise(self.v_cR1.get(),sR,rn); n2=additional_noise(self.v_cR2.get(),sR,rn)
             self._rl["ndR1"].config(text=f"{n1*100:.3f}%"); self._rl["ndR2"].config(text=f"{n2*100:.3f}%"); self._rl["dR"].config(text=f"{(n2-n1)*100:+.4f}%")
-        except: pass
+        except Exception: pass
         self._charts_dirty=True
         try:
             idx=self.nb.index(self.nb.select())
             if idx==self._chart_tab_idx: self.root.after(80, self._draw_charts_now)
-        except: pass
+        except Exception: pass
         try: self._update_tables()
-        except: pass
+        except Exception: pass
 
     def _toggle_lang(self):
         self.lang="en" if self.lang=="fr" else "fr"
@@ -613,39 +668,62 @@ class App:
                 messagebox.showinfo("Export",f"{'Exporte' if self.lang=='fr' else 'Exported'}!\n{path}")
         except Exception as e: messagebox.showerror("Error",str(e))
 
+    def _report_bug(self):
+        from urllib.parse import quote
+        last_err = _get_last_error()
+        if not last_err:
+            messagebox.showinfo(self._t("btn_bug"), self._t("bug_no_errors"))
+        # Truncate error for URL (max ~1500 chars to stay under URL limits)
+        err_snippet = last_err[:1500] if last_err else "No automatic error logged."
+        env_info = (
+            f"- App version: {__version__}\n"
+            f"- OS: {platform.system()} {platform.release()} ({platform.machine()})\n"
+            f"- Python: {sys.version.split()[0]}\n"
+        )
+        title = quote(f"[Bug] v{__version__} - ")
+        body = quote(
+            f"## Environment\n{env_info}\n"
+            f"## Description\n<!-- Describe the problem here -->\n\n"
+            f"## Steps to reproduce\n1. \n2. \n3. \n\n"
+            f"## Last error log\n```\n{err_snippet}\n```\n"
+        )
+        webbrowser.open(f"{_REPO_URL}/issues/new?title={title}&body={body}")
+
 def _create_shortcut():
     s=os.path.abspath(__file__); n="ExposureCalculator"
     if platform.system()=="Windows":
         try: (Path.home()/"Desktop"/f"{n}.bat").write_text(f'@echo off\npythonw "{s}"\n',encoding="utf-8")
-        except: pass
+        except Exception: pass
     elif platform.system()=="Darwin":
         try: d=Path.home()/"Applications"/f"{n}.app"/"Contents"/"MacOS"; d.mkdir(parents=True,exist_ok=True); l=d/n; l.write_text(f'#!/bin/bash\npython3 "{s}"\n',encoding="utf-8"); os.chmod(str(l),0o755)
-        except: pass
+        except Exception: pass
     else:
         try:
             d=Path.home()/".local"/"share"/"applications"; d.mkdir(parents=True,exist_ok=True)
             (d/f"{n.lower()}.desktop").write_text(f"[Desktop Entry]\nType=Application\nName={n}\nExec=python3 {s}\nTerminal=false\nCategories=Science;\n",encoding="utf-8")
-        except: pass
+        except Exception: pass
 
-_UPDATE_URL = "https://raw.githubusercontent.com/NGC4565/ExposureCalculator/main/ExposureCalculator.py"
-_REPO_URL = "https://github.com/NGC4565/ExposureCalculator"
+_UPDATE_URL = "https://raw.githubusercontent.com/ARP273-ROSE/exposure-calculator/main/ExposureCalculator.py"
+_REPO_URL = "https://github.com/ARP273-ROSE/exposure-calculator"
 
 def _parse_version(v):
     try: return tuple(int(x) for x in v.strip().split("."))
-    except: return (0,)
+    except Exception: return (0,)
 
 def _check_for_update(root, lang):
     def _worker():
         try:
+            import ssl
             from urllib.request import urlopen, Request
+            ctx = ssl.create_default_context()
             req = Request(_UPDATE_URL, headers={"User-Agent": "ExposureCalculator"})
-            data = urlopen(req, timeout=10).read(2048).decode("utf-8", errors="ignore")
+            data = urlopen(req, timeout=10, context=ctx).read(2048).decode("utf-8", errors="ignore")
             remote_ver = None
             for line in data.splitlines():
                 if line.startswith("__version__"):
                     remote_ver = line.split("=")[1].strip().strip('"').strip("'")
                     break
-            if not remote_ver:
+            if not remote_ver or not re.fullmatch(r"\d+\.\d+", remote_ver):
                 return
             if _parse_version(remote_ver) <= _parse_version(__version__):
                 return
@@ -677,13 +755,13 @@ def main():
     if platform.system()=="Windows":
         try:
             from ctypes import windll; windll.shcore.SetProcessDpiAwareness(1)
-        except: pass
+        except Exception: pass
     root=tk.Tk(); app=App(root)
     _check_for_update(root, app.lang)
     m=Path.home()/".exposure_calc_installed"
     if not m.exists():
         try: _create_shortcut(); m.touch()
-        except: pass
+        except Exception: pass
     root.mainloop()
 
 if __name__=="__main__": main()
