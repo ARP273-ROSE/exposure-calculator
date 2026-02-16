@@ -1,0 +1,443 @@
+% ExposureCalculator_Manual.tex — v1.03
+% Compile with: pdflatex ExposureCalculator_Manual.tex (x2 for TOC)
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{fancyhdr}
+\usepackage{enumitem}
+\usepackage{booktabs}
+\usepackage{tcolorbox}
+\usepackage{mathtools}
+
+% === Colors (match app theme) ===
+\definecolor{accentorange}{HTML}{F0883E}
+\definecolor{accentblue}{HTML}{58A6FF}
+\definecolor{theoryorange}{HTML}{F0883E}
+\definecolor{importantblue}{HTML}{58A6FF}
+\definecolor{greenok}{HTML}{3FB950}
+\definecolor{dimgray}{HTML}{8B949E}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=accentblue,
+    urlcolor=accentblue,
+    citecolor=accentblue,
+    pdftitle={Exposure Time Calculator — Manual},
+    pdfauthor={Benoit SAINTOT / NGC4565},
+}
+
+% === tcolorbox styles ===
+\tcbset{
+    theorybox/.style={
+        colback=theoryorange!8, colframe=theoryorange!80,
+        coltitle=white, fonttitle=\bfseries,
+        title=Theory, arc=2pt, boxrule=0.8pt,
+        left=6pt, right=6pt, top=4pt, bottom=4pt,
+    },
+    importantbox/.style={
+        colback=importantblue!8, colframe=importantblue!80,
+        coltitle=white, fonttitle=\bfseries,
+        title=Important, arc=2pt, boxrule=0.8pt,
+        left=6pt, right=6pt, top=4pt, bottom=4pt,
+    },
+    originbox/.style={
+        colback=greenok!8, colframe=greenok!60,
+        arc=2pt, boxrule=0.8pt,
+        left=6pt, right=6pt, top=6pt, bottom=6pt,
+    },
+}
+
+% === Header/Footer ===
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\textsf{Exposure Time Calculator}}
+\fancyhead[R]{\small \copyright~Benoit SAINTOT}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% === Section colors ===
+\usepackage{titlesec}
+\titleformat{\section}{\Large\bfseries\color{accentorange}}{\thesection}{1em}{}
+\titleformat{\subsection}{\large\bfseries\color{accentblue!90!black}}{\thesubsection}{1em}{}
+\titleformat{\subsubsection}{\normalsize\bfseries\color{accentblue!70!black}}{\thesubsubsection}{1em}{}
+
+% === Underbrace helper ===
+\newcommand{\ub}[2]{\underbrace{\text{#1}}_{\text{\scriptsize #2}}}
+
+\begin{document}
+
+% ============================================================
+% TITLE PAGE
+% ============================================================
+\begin{center}
+    {\Huge\bfseries\color{accentorange} Exposure Time Calculator}\\[6pt]
+    {\Large Theory, Functionality \& User Manual}\\[14pt]
+    {\large Version 1.03}\\[4pt]
+    {\color{dimgray}\normalsize Ideal Sub-Exposure Time for Astrophotography}
+\end{center}
+
+\vspace{12pt}
+
+\begin{tcolorbox}[originbox]
+    \textbf{Origins:} This software implements the methodology from the original \textbf{Excel spreadsheet} created by \textbf{Benoit Saintot}. The Python application provides a cross-platform graphical interface while preserving the same theoretical foundations and calculation methods.
+\end{tcolorbox}
+
+\vspace{8pt}
+\tableofcontents
+\newpage
+
+% ============================================================
+\section{Introduction}
+% ============================================================
+
+Deep-sky astrophotography relies on stacking many sub-exposures to improve signal-to-noise ratio. A fundamental question every imager faces is: \emph{How long should each sub-exposure be?}
+Too short, and read noise degrades the image. Too long, and you gain little while risking saturation, trailing, or wasted time on lost frames. The Exposure Time Calculator addresses this by combining sky background, sensor characteristics, and two complementary mathematical approaches to recommend optimal sub-exposure times per filter.
+
+The application uses two complementary approaches:
+\begin{itemize}[nosep]
+    \item \textbf{Swamp Factor} --- target a sky-to-read-noise ratio (typically 3--10)
+    \item \textbf{Optimal Time} --- accept a small amount of extra noise (\%) and compute the recommended exposure per filter
+\end{itemize}
+
+% ============================================================
+\section{Objectives for the Astrophotographer}
+% ============================================================
+
+\subsection{What the imager is trying to achieve}
+
+The astrophotographer's goal is to maximise the \textbf{signal-to-noise ratio (SNR)} in the final stacked image while making efficient use of time and equipment. Concretely:
+
+\begin{itemize}
+    \item \textbf{Reveal faint details} --- galaxies, nebulae, and dust lanes are buried in noise. Higher SNR makes faint structures visible and reduces grain.
+    \item \textbf{Minimise noise} --- Each pixel contains useful signal plus several noise sources. The aim is to minimise the relative contribution of noise so the signal stands out.
+    \item \textbf{Optimise integration time} --- For a given total imaging time, choosing the right sub-exposure length can improve the final SNR or allow shorter total sessions.
+\end{itemize}
+
+\subsection{Why sub-exposure length matters}
+
+Read noise is \emph{fixed} per exposure: it is added once per frame regardless of exposure time. Sky background and dark current, however, accumulate with time. Thus:
+
+\begin{itemize}
+    \item \textbf{Short exposures} --- More frames for the same total time, but each frame is dominated by read noise. Stacking helps, but you start from noisier subs.
+    \item \textbf{Long exposures} --- Fewer frames, but each frame has more sky and dark signal relative to read noise. Beyond a certain point, extra length brings little gain (diminishing returns).
+    \item \textbf{Sweet spot} --- There is an exposure length that balances read noise against sky/dark in an optimal way. The calculator finds this for your conditions and gear.
+\end{itemize}
+
+\subsection{Practical constraints and trade-offs}
+
+\begin{tcolorbox}[importantbox]
+    \textbf{Guiding \& tracking} --- Longer subs require better tracking. If your mount drifts or guiding fails, a long sub is wasted. Shorter subs can be more robust in difficult conditions.\\
+    \textbf{Saturation} --- Bright stars or cores can saturate pixels. Very long exposures increase this risk; shorter subs may be necessary in high-contrast regions.\\
+    \textbf{Light pollution \& filters} --- Sky background ($\text{e}^-/\text{px}/\text{s}$) varies with filter: L and RGB are higher; narrowband (Ha, Oiii, Sii) is lower. Narrowband often needs longer subs to reach the optimal zone.\\
+    \textbf{Efficiency} --- Aim for the shortest exposure that still keeps you in the optimal noise regime. This maximises the number of usable subs and can reduce the impact of clouds or equipment issues.
+\end{tcolorbox}
+
+\subsection{Summary of objectives}
+
+The Exposure Time Calculator helps you:
+
+\begin{enumerate}[nosep]
+    \item \textbf{Determine target sky background median (ADU)} --- So you can measure a raw frame and adjust exposure until you hit the right level.
+    \item \textbf{Obtain recommended exposure times} --- Per filter (L, RGB, NB), based on your accepted additional noise tolerance.
+    \item \textbf{Compare strategies} --- Evaluate, for example, 120\,s vs 180\,s subs and see the impact on noise.
+    \item \textbf{Use your camera effectively} --- The built-in database fills sensor parameters automatically for 40+ cameras.
+\end{enumerate}
+
+% ============================================================
+\section{Theory}
+% ============================================================
+
+\subsection{Noise Sources}
+
+In each pixel, the measured value (in electrons before digitisation) is the sum of:
+
+\begin{equation}
+    \text{Total} = \ub{Useful signal}{target} + \ub{Sky background}{unwanted} + \ub{Read Noise}{RN} + \ub{Dark Current}{DC} + \ub{Photon noise}{Poisson}
+\end{equation}
+
+\textbf{Useful signal} --- Photons from the target (galaxy, nebula, star). This is what we want to maximise relative to noise.
+
+\textbf{Sky background} --- Light pollution, airglow, moonlight, scattered light. Unwanted but unavoidable; it accumulates linearly with exposure time ($\text{e}^-/\text{pixel}/\text{s}$). Varies strongly with filter: L and RGB are highest; narrowband filters (Ha, Oiii, Sii) dramatically reduce sky glow.
+
+\textbf{Read noise (RN)} --- Electronic noise introduced by the sensor and amplifier when the pixel is read out. Expressed in electrons rms. It is \emph{constant per exposure}: you pay it once per frame, regardless of exposure length. Depends on gain: higher gain usually lowers RN but reduces full-well capacity.
+
+\textbf{Dark current (DC)} --- Thermally generated electrons in the sensor. Increases with sensor temperature. Expressed in $\text{e}^-/\text{s}/\text{pixel}$. Cooled cameras reduce DC significantly. Accumulates linearly with time.
+
+\textbf{Photon noise} --- Fundamental quantum noise: the arrival of photons is Poissonian, so the uncertainty is $\sqrt{N}$ for $N$ photons. Inherent to the signal and sky; cannot be eliminated.
+
+\subsection{Total Noise}
+
+\begin{tcolorbox}[theorybox]
+    The total noise (standard deviation) in electrons per pixel is:
+    \begin{equation}
+        \sigma = \sqrt{\text{RN}^2 + \text{DC} \cdot t + \text{Sky} \cdot t}
+    \end{equation}
+    where $t$ is the exposure time in seconds, RN is read noise ($\text{e}^-$ rms), DC is dark current ($\text{e}^-/\text{s}/\text{pixel}$), and Sky is sky background ($\text{e}^-/\text{pixel}/\text{s}$).
+\end{tcolorbox}
+
+\textbf{Interpretation:} The variance $\sigma^2$ is the sum of independent noise variances. Read noise contributes a fixed $\text{RN}^2$ per frame. Dark and sky add in proportion to time (they accumulate). For short $t$, RN dominates. For long $t$, Sky$\cdot t$ (and DC$\cdot t$ if significant) dominate. The transition occurs when Sky\,$\cdot\,t \approx \text{RN}^2$ --- this is the essence of the Swamp Factor.
+
+\subsection{Signal-to-Noise Ratio (SNR) When Stacking}
+
+When stacking $N$ identical sub-exposures of exposure time $t$:
+
+\begin{equation}
+    \text{SNR}_{\text{stack}} = \frac{\text{Signal} \times \sqrt{N}}{\sigma}
+\end{equation}
+
+The signal increases linearly with total integration time ($N \cdot t$); the noise in the stack is $\sigma / \sqrt{N}$ because independent noise adds in quadrature. Thus SNR grows as $\sqrt{N}$, or equivalently as $\sqrt{\text{total time}}$ --- doubling integration time improves SNR by $\sqrt{2} \approx 1.41$.
+
+\textbf{Practical consequence:} For a fixed total time, using more (shorter) subs or fewer (longer) subs changes $\sigma$ per sub. If subs are too short, $\sigma$ is large (read-noise dominated) and you pay a penalty. If subs are long enough that sky dominates, further lengthening brings little gain. The calculator finds the exposure that optimises this balance.
+
+\subsection{Swamp Factor (First Approach)}
+
+\begin{tcolorbox}[theorybox]
+    The \textbf{Swamp Factor} (SF) is the ratio of sky background signal to read noise variance:
+    \begin{equation}
+        \text{SF} = \frac{\text{Sky} \times t}{\text{RN}^2}
+    \end{equation}
+
+    It answers: ``How many times does the sky signal exceed the read noise variance?'' When SF is large, sky ``swamps'' read noise; when SF is small, read noise dominates.
+    \begin{itemize}[nosep]
+        \item $\textbf{SF} < \textbf{3:}$ Read noise dominates. Each sub is noisy; you are wasting integration time. Increase exposure time.
+        \item $\textbf{3} \leq \textbf{SF} \leq \textbf{10:}$ Optimal zone. Sky and read noise are balanced; you get good efficiency.
+        \item $\textbf{SF} > \textbf{10:}$ Sky dominates. Little gain from longer exposures; you can reduce if guiding or saturation are concerns.
+    \end{itemize}
+\end{tcolorbox}
+
+\subsubsection{Target Median (ADU)}
+
+The calculator converts SF into a target median ADU so you can measure a raw frame. To achieve a given SF, the target sky background median in ADU is:
+
+\begin{equation}
+    \text{Median}_{\text{target}} = \text{INT}\!\left(\frac{\text{SF} \times \text{RN}^2}{\text{Gain}_{\text{e/ADU}}} + \text{Offset}\right) \times \frac{2^{16}}{2^{\text{Bits}}}
+\end{equation}
+
+On a raw frame, select a sky region without stars, measure the median (e.g.\ Process Statistics in PixInsight), and compare to this target. Adjust exposure time so the median falls in the optimal band (SF$\times$3 to SF$\times$10).
+
+\subsection{Additional Noise (Second Approach)}
+
+This approach answers: ``If I use sub-exposures of length $T$ instead of one infinitely long exposure, how much extra noise do I accept?'' In practice, we never take infinite exposures, but the theoretical limit gives a reference. Accepting a small extra noise (e.g.\ 5\%) lets you use shorter subs --- useful when guiding, clouds, or saturation limit exposure length.
+
+Compared to an infinitely long single exposure, a finite sub-exposure adds extra noise. The \textbf{additional noise} (as a fraction) is:
+
+\begin{equation}
+    \text{Add}_{\text{noise}} = \sqrt{\frac{(T \cdot \text{Sky}/\text{RN}^2) + 1}{(T \cdot \text{Sky}/\text{RN}^2)}} - 1
+\end{equation}
+
+where $T$ is the exposure time in seconds.
+
+\begin{tcolorbox}[theorybox]
+    The \textbf{C factor} relates accepted additional noise (\%) to exposure time:
+    \begin{equation}
+        C = \frac{1}{\left(1 + \dfrac{\%\text{noise}}{100}\right)^2 - 1}
+    \end{equation}
+
+    Typical values: $1\% \Rightarrow C\!\approx\!50$ \quad $2\% \Rightarrow C\!\approx\!25$ \quad $5\% \Rightarrow C\!\approx\!10$ \quad $10\% \Rightarrow C\!\approx\!4$
+
+    \medskip
+    The \textbf{optimal exposure time} for a given C is:
+    \begin{equation}
+        T_{\text{optimal}} = \text{ceil}\!\left(C \times \frac{\text{RN}^2}{\text{Sky}}\right)
+    \end{equation}
+\end{tcolorbox}
+
+Higher sky background shortens $T_{\text{optimal}}$ (L/RGB in light pollution); lower sky lengthens it (narrowband, dark sites). The C factor encodes your tolerance: 5\% extra noise $\Rightarrow$ C$\approx$10; 1\% $\Rightarrow$ C$\approx$50 (longer subs required).
+
+\subsection{Combining Both Approaches}
+
+\begin{tcolorbox}[importantbox]
+    \begin{enumerate}[nosep]
+        \item Compute $T_{\text{optimal}}$ from the second approach (accepted noise \%)
+        \item Check that SF is between 3 and 10 at that exposure
+        \item If SF $< 3$ $\Rightarrow$ increase exposure; if SF $> 10$ $\Rightarrow$ can reduce
+    \end{enumerate}
+\end{tcolorbox}
+
+% ============================================================
+\section{Application Functionality}
+% ============================================================
+
+\subsection{Parameters Tab}
+
+\textbf{Sky background levels} ($\text{e}^-/\text{pixel}/\text{s}$):\\
+Luminance (L), RGB, Narrowband 12\,nm, 7\,nm. Narrowband 3\,nm is computed automatically as NB12/4. Obtain values from SharpCap: \url{https://tools.sharpcap.co.uk/}. Use max Qe in the linear range, not the absolute peak.
+
+\textbf{Sensor parameters:}
+\begin{itemize}[nosep]
+    \item \textbf{Read Noise} ($\text{e}^-$ rms) --- depends on gain
+    \item \textbf{Gain} ($\text{e}^-$/ADU) --- electrons per ADU, not manufacturer gain index
+    \item \textbf{Dark Current} ($\text{e}^-$/s/px) --- depends on cooling temperature
+    \item \textbf{Bits} --- ADC depth (12, 14, 16)
+    \item \textbf{Offset} (ADU)
+\end{itemize}
+
+\textbf{Camera database:} Select brand (ZWO, QHY, Moravian, ATIK, Player One, ToupTek), model, gain preset, and cooling temperature. Click \textbf{Apply} to auto-fill sensor parameters. 40+ camera models supported.
+
+\subsection{Swamp Factor Tab (1st Approach)}
+
+\begin{itemize}[nosep]
+    \item Set desired Swamp Factor (3--10)
+    \item Read target medians: SF$\times$3, SF$\times$N, SF$\times$10
+    \item On a raw frame, measure median in a sky region; compare to targets and adjust exposure
+\end{itemize}
+
+\subsection{Optimal Time Tab (2nd Approach)}
+
+\begin{itemize}[nosep]
+    \item Set accepted additional noise (\%) --- C factor is computed
+    \item Read recommended sub-exposure time per filter (L, RGB, NB 12/7/3\,nm)
+    \item For any exposure time you enter, the app shows the corresponding additional noise (\%) --- compare to your threshold
+\end{itemize}
+
+\subsection{Comparison Tab}
+
+Compare two exposure strategies (e.g.\ 120\,s vs 180\,s) in Luminance and RGB. Displays additional noise for each strategy and the Delta SNR between them.
+
+\subsection{Charts Tab}
+
+\begin{itemize}[nosep]
+    \item \textbf{L / RGB} --- Additional noise (\%) vs exposure time for L and RGB
+    \item \textbf{Narrowband} --- Same for NB 12\,nm, 7\,nm, 3\,nm
+\end{itemize}
+
+The accepted threshold line is shown. Exposure times below the line are within your tolerance.
+
+\subsection{Tables Tab}
+
+Tables of additional noise (\%) for fixed exposure times (4--2000\,s for L/RGB, 100--2000\,s for NB). Green values are below your threshold.
+
+\subsection{Export}
+
+Export current parameters and results to JSON: parameters (sky, sensor), approach~1 (SF, medians), approach~2 (C factor, optimal times per filter).
+
+\subsection{Bug Reporting}
+
+\begin{itemize}[nosep]
+    \item Click the red \textbf{``Report a bug''} button in the top bar
+    \item A pre-filled GitHub Issue opens in your browser with:
+    \begin{itemize}[nosep]
+        \item Application version, OS, Python version (automatic)
+        \item Last error from the log file (automatic)
+        \item Template for description and steps to reproduce
+    \end{itemize}
+    \item Fill in the description and submit
+\end{itemize}
+
+% ============================================================
+\section{Automatic Updates}
+% ============================================================
+
+The application uses a two-level auto-update strategy so users always run the latest version without manual intervention.
+
+\subsection{Via Launchers (Primary)}
+
+The launcher scripts (\texttt{run.bat} on Windows, \texttt{run.sh} on Linux/macOS) execute the following \emph{before} starting Python:
+
+\begin{enumerate}[nosep]
+    \item Check that \texttt{git} is available on the system PATH
+    \item Check that a \texttt{.git} directory exists (clone, not zip download)
+    \item Run \texttt{git fetch origin main} (silent)
+    \item Run \texttt{git reset --hard origin/main} (silent)
+\end{enumerate}
+
+All output is suppressed. If any step fails (no git, no internet, zip download), the launcher continues to start the application normally.
+
+\subsection{Via Python (Fallback)}
+
+When the user runs \texttt{python ExposureCalculator.py} directly (bypassing the launcher), a background thread performs an update check:
+
+\begin{enumerate}[nosep]
+    \item Fetch the first 2\,KB of the remote \texttt{ExposureCalculator.py} via HTTPS from \texttt{raw.githubusercontent.com} (with explicit SSL certificate verification)
+    \item Parse the remote \texttt{\_\_version\_\_} string and validate its format (\texttt{\textbackslash d+\textbackslash.\textbackslash d+})
+    \item Compare remote vs local version as integer tuples
+    \item If remote is newer:
+    \begin{itemize}[nosep]
+        \item If \texttt{.git} is present and git is available: auto-update via \texttt{git fetch} + \texttt{git reset --hard}, then show a ``restart to use v\,X.XX'' message
+        \item Otherwise: show a dialog with the download link
+    \end{itemize}
+    \item If any step fails (no internet, timeout, 404), the app starts normally with no notification
+\end{enumerate}
+
+\subsection{Edge Cases}
+
+\begin{center}
+\begin{tabular}{ll}
+    \toprule
+    \textbf{Scenario} & \textbf{Behaviour} \\
+    \midrule
+    Git + internet & Launcher updates silently; app starts up-to-date \\
+    No git installed & Launcher block skipped; Python shows download link \\
+    No internet & \texttt{git fetch} fails silently; app starts normally \\
+    Zip download (no \texttt{.git}) & \texttt{.git} check $\rightarrow$ skipped; Python shows download link \\
+    Local version $>$ remote (dev) & Tuple comparison $\rightarrow$ no notification \\
+    \bottomrule
+\end{tabular}
+\end{center}
+
+% ============================================================
+\section{Error Logging}
+% ============================================================
+
+All unhandled exceptions are automatically captured and written to a local log file:
+
+\begin{center}
+    \texttt{\textasciitilde/.exposure\_calc\_errors.log}
+\end{center}
+
+\textbf{Log format:}
+\begin{verbatim}
+[2026-02-16T14:30:00] v1.03 | Windows 10.0.26200 | Python 3.12.0
+Traceback (most recent call last):
+  File "ExposureCalculator.py", line 42, in ...
+    ...
+ValueError: invalid literal for int()
+\end{verbatim}
+
+\textbf{Rotation:} When the log file exceeds 500\,KB, the first half of its content is automatically truncated to prevent unbounded growth.
+
+\textbf{Privacy:} The log file is stored locally on the user's machine. No data is sent anywhere automatically. It is only included in a bug report if the user explicitly clicks the ``Report a bug'' button.
+
+% ============================================================
+\section{Installation \& Running}
+% ============================================================
+
+\textbf{Windows:} Double-click \texttt{run.bat}. If Python is missing, the script installs it via winget. If winget is missing, you are guided to install it.
+
+\textbf{Linux/macOS:} Run \texttt{./run.sh}. Python and tkinter are installed via the system package manager if missing.
+
+The application installs \texttt{matplotlib} automatically on first run.
+
+\subsection{Project Structure}
+
+\begin{verbatim}
+exposure-calculator/
+  ExposureCalculator.py            Main application (single-file)
+  ExposureCalculator_Manual.tex    This manual (LaTeX source)
+  ExposureCalculator_Manual.pdf    Compiled manual
+  run.bat                          Windows launcher
+  run.sh                           Linux/macOS launcher
+  README.md                        Project documentation
+  CLAUDE.md                        AI-assisted dev project memory
+  .gitignore                       Python cache exclusions
+\end{verbatim}
+
+% ============================================================
+\section{Credits}
+% ============================================================
+
+\begin{tcolorbox}[originbox]
+    \textbf{Original Excel spreadsheet \& theory:} \copyright~Benoit SAINTOT\\
+    \textbf{Python GUI application:} NGC4565\\
+    \textbf{Version:} 1.03\\
+    \textbf{License:} Use and share with attribution.
+\end{tcolorbox}
+
+\end{document}
