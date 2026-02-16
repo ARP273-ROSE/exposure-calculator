@@ -6,12 +6,18 @@ Ideal Sub-Exposure Time Calculator
 Cross-platform, auto-install, auto-language.
 """
 
-__version__ = "1.04"
+__version__ = "1.05"
 __author__ = "©Benoit_SAINTOT — GUI by NGC4565"
 
 import subprocess, sys, importlib, os, math, locale, platform, webbrowser, json, threading, re, traceback
 from datetime import datetime
 from pathlib import Path
+
+def _resource_path(filename):
+    """Return absolute path to resource — works for dev and PyInstaller bundle."""
+    if getattr(sys, '_MEIPASS', None):
+        return os.path.join(sys._MEIPASS, filename)
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
 
 # === ERROR LOGGING ===
 _LOG_PATH = Path.home() / ".exposure_calc_errors.log"
@@ -29,7 +35,6 @@ def _log_error(exc_type=None, exc_value=None, exc_tb=None):
             f"v{__version__} | {platform.system()} {platform.release()} | "
             f"Python {sys.version.split()[0]}\n{tb_text}\n"
         )
-        # Truncate log if too large
         if _LOG_PATH.exists() and _LOG_PATH.stat().st_size > _LOG_MAX_BYTES:
             lines = _LOG_PATH.read_text(encoding="utf-8", errors="replace").splitlines(True)
             half = len(lines) // 2
@@ -37,7 +42,7 @@ def _log_error(exc_type=None, exc_value=None, exc_tb=None):
         with open(_LOG_PATH, "a", encoding="utf-8") as f:
             f.write(entry)
     except Exception:
-        pass  # Logging must never crash the app
+        pass
 
 def _excepthook(exc_type, exc_value, exc_tb):
     _log_error(exc_type, exc_value, exc_tb)
@@ -54,6 +59,23 @@ def _get_last_error():
         return blocks[-1].strip() if blocks else None
     except Exception:
         return None
+
+# === SETTINGS PERSISTENCE ===
+_SETTINGS_PATH = Path.home() / ".exposure_calc_settings.json"
+
+def _load_settings():
+    try:
+        if _SETTINGS_PATH.exists():
+            return json.loads(_SETTINGS_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        pass
+    return None
+
+def _save_settings_to_file(data):
+    try:
+        _SETTINGS_PATH.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    except Exception:
+        pass
 
 def _ensure_package(pip_name, import_name=None):
     import_name = import_name or pip_name
@@ -135,7 +157,9 @@ def _init_translations():
     T = {
         "win_title":{"fr":"Calculateur de Temps d'Exposition — ©Benoit_SAINTOT","en":"Exposure Time Calculator — ©Benoit_SAINTOT"},
         "lang_btn":{"fr":"English","en":"Francais"}, "recalc":{"fr":"Recalculer","en":"Recalculate"},
-        "export":{"fr":"Exporter","en":"Export"},
+        "export":{"fr":"Exporter","en":"Export"}, "import":{"fr":"Importer","en":"Import"},
+        "import_ok":{"fr":"Reglages importes avec succes !","en":"Settings imported successfully!"},
+        "import_err":{"fr":"Fichier invalide ou incompatible.","en":"Invalid or incompatible file."},
         "fill_yellow":{"fr":"Remplir uniquement les cases jaunes — resultats automatiques","en":"Fill only yellow fields — results update automatically"},
         "tab_params":{"fr":"Parametres","en":"Parameters"}, "tab_a1":{"fr":"Swamp Factor","en":"Swamp Factor"},
         "tab_a2":{"fr":"Temps Optimal","en":"Optimal Time"}, "tab_compare":{"fr":"Comparaison","en":"Comparison"},
@@ -265,6 +289,17 @@ IV. SIGNALEMENT DE BUGS
     de boutons. Un rapport pre-rempli s'ouvre sur GitHub Issues
     avec l'environnement et la derniere erreur enregistree.
     Il suffit de decrire le probleme et de valider.
+
+V. SAUVEGARDE DES REGLAGES
+----------------------------
+  AUTOMATIQUE:
+    Tous les parametres sont sauvegardes automatiquement dans :
+      ~/.exposure_calc_settings.json
+    Au prochain lancement, les reglages sont restaures.
+
+  EXPORT / IMPORT:
+    Exporter : sauvegarde parametres + resultats dans un fichier JSON.
+    Importer : charge les parametres depuis un fichier JSON exporte.
 """
 
 HELP_EN = """EXPOSURE TIME CALCULATOR — COMPLETE HELP  (c)Benoit_SAINTOT
@@ -340,6 +375,17 @@ IV. BUG REPORTING
     A pre-filled report opens on GitHub Issues with your
     environment info and the last logged error.
     Just describe the problem and submit.
+
+V. SETTINGS PERSISTENCE
+-------------------------
+  AUTOMATIC:
+    All parameters are automatically saved to:
+      ~/.exposure_calc_settings.json
+    On next launch, settings are restored.
+
+  EXPORT / IMPORT:
+    Export: saves parameters + results to a JSON file.
+    Import: loads parameters from a previously exported JSON file.
 """
 
 # === CALCULATIONS ===
@@ -384,9 +430,82 @@ class App:
         self.v_cR1=tk.IntVar(value=120); self.v_cR2=tk.IntVar(value=180)
         self.v_brand=tk.StringVar(value="ZWO"); self.v_model=tk.StringVar(); self.v_gain=tk.StringVar(); self.v_temp=tk.StringVar()
         self._rl={}; self._chart_canvas=None; self._recalc_id=None; self._charts_dirty=True; self._chart_tab_idx=4
+        self._save_id=None
+        # Restore saved settings
+        self._restore_settings()
         for v in [self.v_sky_L,self.v_sky_RGB,self.v_sky_NB12,self.v_sky_NB7,self.v_rn,self.v_ge,self.v_dc,self.v_bits,self.v_offset,self.v_sf,self.v_noise_pct,self.v_cL1,self.v_cL2,self.v_cR1,self.v_cR2]+list(self.v_exp.values()):
             v.trace_add("write", lambda *_: self._sched())
         self._build(); self._recalc()
+
+    def _get_settings_dict(self):
+        """Collect all input parameters into a dict."""
+        return {
+            "version": __version__, "lang": self.lang,
+            "sky_L": self.v_sky_L.get(), "sky_RGB": self.v_sky_RGB.get(),
+            "sky_NB12": self.v_sky_NB12.get(), "sky_NB7": self.v_sky_NB7.get(),
+            "rn": self.v_rn.get(), "ge": self.v_ge.get(), "dc": self.v_dc.get(),
+            "bits": self.v_bits.get(), "offset": self.v_offset.get(),
+            "sf": self.v_sf.get(), "noise_pct": self.v_noise_pct.get(),
+            "exp_L": self.v_exp["L"].get(), "exp_RGB": self.v_exp["RGB"].get(),
+            "exp_NB12": self.v_exp["NB 12 nm"].get(), "exp_NB7": self.v_exp["NB 7 nm"].get(),
+            "exp_NB3": self.v_exp["NB 3 nm"].get(),
+            "cL1": self.v_cL1.get(), "cL2": self.v_cL2.get(),
+            "cR1": self.v_cR1.get(), "cR2": self.v_cR2.get(),
+            "brand": self.v_brand.get(), "model": self.v_model.get(),
+            "gain_setting": self.v_gain.get(), "temp_setting": self.v_temp.get(),
+        }
+
+    def _apply_settings_dict(self, s):
+        """Apply a settings dict to all input variables."""
+        _map = {
+            "sky_L": self.v_sky_L, "sky_RGB": self.v_sky_RGB,
+            "sky_NB12": self.v_sky_NB12, "sky_NB7": self.v_sky_NB7,
+            "rn": self.v_rn, "ge": self.v_ge, "dc": self.v_dc,
+            "bits": self.v_bits, "offset": self.v_offset,
+            "sf": self.v_sf, "noise_pct": self.v_noise_pct,
+            "cL1": self.v_cL1, "cL2": self.v_cL2, "cR1": self.v_cR1, "cR2": self.v_cR2,
+        }
+        _exp_map = {"exp_L":"L","exp_RGB":"RGB","exp_NB12":"NB 12 nm","exp_NB7":"NB 7 nm","exp_NB3":"NB 3 nm"}
+        for k, var in _map.items():
+            if k in s:
+                try: var.set(s[k])
+                except Exception: pass
+        for k, fn in _exp_map.items():
+            if k in s:
+                try: self.v_exp[fn].set(s[k])
+                except Exception: pass
+        # Also handle old export format with nested "parameters" key
+        if "parameters" in s and isinstance(s["parameters"], dict):
+            p = s["parameters"]
+            nested_map = {"sky_L": self.v_sky_L, "sky_RGB": self.v_sky_RGB,
+                          "sky_NB12": self.v_sky_NB12, "sky_NB7": self.v_sky_NB7,
+                          "rn": self.v_rn, "ge": self.v_ge, "dc": self.v_dc,
+                          "bits": self.v_bits, "offset": self.v_offset}
+            for k, var in nested_map.items():
+                if k in p:
+                    try: var.set(p[k])
+                    except Exception: pass
+
+    def _restore_settings(self):
+        """Load saved settings from disk on startup."""
+        s = _load_settings()
+        if not s:
+            return
+        if "lang" in s and s["lang"] in ("fr", "en"):
+            self.lang = s["lang"]
+        self._apply_settings_dict(s)
+
+    def _auto_save(self):
+        """Debounced auto-save of settings to disk."""
+        if self._save_id:
+            self.root.after_cancel(self._save_id)
+        self._save_id = self.root.after(500, self._do_save)
+
+    def _do_save(self):
+        try:
+            _save_settings_to_file(self._get_settings_dict())
+        except Exception:
+            pass
 
     def _t(self,k): return tr(k,self.lang)
     @property
@@ -428,7 +547,6 @@ class App:
 
     def _build(self):
         r=self.root; r.title(self._t("win_title")); r.configure(bg=CL["bg"])
-        # Adaptive window: 85% of screen
         sw,sh=r.winfo_screenwidth(),r.winfo_screenheight()
         ww=max(1200,min(int(sw*0.85),1600)); wh=max(800,min(int(sh*0.85),1000))
         r.geometry(f"{ww}x{wh}+{(sw-ww)//2}+{max(0,(sh-wh)//2-30)}"); r.minsize(1100,750)
@@ -436,12 +554,11 @@ class App:
         sty.configure("TNotebook",background=CL["bg"],borderwidth=0,tabmargins=[2,5,2,0])
         sty.configure("TNotebook.Tab",background=CL["bg2"],foreground=CL["dim"],padding=[14,6],font=("Helvetica",10,"bold"))
         sty.map("TNotebook.Tab",background=[("selected",CL["card"])],foreground=[("selected",CL["accent"])])
-        # Top bar with grid layout so buttons never clip
         top=tk.Frame(r,bg=CL["bg2"],pady=5); top.pack(fill="x"); top.columnconfigure(1,weight=1)
         tk.Label(top,text="  ",font=("Helvetica",18),bg=CL["bg2"],fg=CL["accent"]).grid(row=0,column=0,padx=(10,2))
         tk.Label(top,text=self._t("win_title"),font=("Helvetica",12,"bold"),fg=CL["accent"],bg=CL["bg2"]).grid(row=0,column=1,sticky="w",padx=4)
         bf=tk.Frame(top,bg=CL["bg2"]); bf.grid(row=0,column=2,padx=8,sticky="e")
-        for txt,cmd,bg in [(self._t("recalc"),self._recalc,CL["green"]),(self._t("export"),self._export,CL["accent2"]),(self._t("btn_bug"),self._report_bug,CL["red"]),(self._t("lang_btn"),self._toggle_lang,CL["purple"])]:
+        for txt,cmd,bg in [(self._t("recalc"),self._recalc,CL["green"]),(self._t("export"),self._export,CL["accent2"]),(self._t("import"),self._import_settings,CL["accent2"]),(self._t("btn_bug"),self._report_bug,CL["red"]),(self._t("lang_btn"),self._toggle_lang,CL["purple"])]:
             tk.Button(bf,text=txt,command=cmd,font=("Helvetica",9,"bold"),bg=bg,fg=CL["bg"],activebackground=bg,activeforeground=CL["white"],relief="flat",padx=10,pady=2,cursor="hand2",bd=0).pack(side="left",padx=3)
         tk.Label(r,text=self._t("fill_yellow"),font=("Helvetica",9),bg=CL["accent"],fg=CL["bg"],pady=2).pack(fill="x")
         self.nb=ttk.Notebook(r); self.nb.pack(fill="both",expand=True,padx=6,pady=(3,6))
@@ -546,7 +663,6 @@ class App:
             dl=tk.Label(df,text="--",font=("Consolas",18,"bold"),fg=CL["green"],bg=CL["card"]); dl.pack(side="left",padx=10); self._rl[dk]=dl
 
     def _bch(self,p):
-        # Inner container with propagate OFF — matplotlib can never push parent bigger
         self._chart_box=tk.Frame(p,bg=CL["bg"])
         self._chart_box.pack(fill="both",expand=True)
         self._chart_box.pack_propagate(False)
@@ -572,7 +688,6 @@ class App:
             self._charts_dirty=True; self._draw_charts_now()
     def _draw_charts_now(self):
         self._chart_box.update_idletasks()
-        # Lire les dimensions AVANT de détruire les enfants (sinon winfo peut renvoyer des valeurs fausses après ~0.1s)
         try:
             box_w = self._chart_box.winfo_width()
             box_h = self._chart_box.winfo_height()
@@ -590,7 +705,6 @@ class App:
         for w in self._chart_box.winfo_children(): w.destroy()
         rn=self.v_rn.get(); thr=self.v_noise_pct.get()/100
         dpi=100
-        # Taille en pixels strictement inférieure au conteneur (marge 3%) pour éviter tout débordement
         margin = 0.03
         fig_w_px = max(100, int(fw * (1 - margin)))
         max_h_ratio = 0.52
@@ -710,6 +824,8 @@ class App:
         except Exception: pass
         try: self._update_tables()
         except Exception: pass
+        # Auto-save settings after each recalc (debounced 500ms)
+        self._auto_save()
 
     def _toggle_lang(self):
         self.lang="en" if self.lang=="fr" else "fr"
@@ -720,21 +836,41 @@ class App:
         try:
             rn,ge,bits,off=self.v_rn.get(),self.v_ge.get(),self.v_bits.get(),self.v_offset.get()
             npct=self.v_noise_pct.get(); cf=c_factor(npct)
-            data={"parameters":{"sky_L":self.v_sky_L.get(),"sky_RGB":self.v_sky_RGB.get(),"sky_NB12":self.v_sky_NB12.get(),"sky_NB7":self.v_sky_NB7.get(),"sky_NB3":self.sky_NB3,"rn":rn,"ge":ge,"dc":self.v_dc.get(),"bits":bits,"offset":off},
-                  "approach1":{"sf":self.v_sf.get(),"median_SF3":target_median(3,rn,ge,off,bits),"median_SF10":target_median(10,rn,ge,off,bits)},
-                  "approach2":{"noise_pct":npct,"c_factor":cf,"times":{fn:optimal_time(cf,rn,self._sky(sk)) for fn,sk in FILTERS}}}
+            data={
+                "settings": self._get_settings_dict(),
+                "parameters":{"sky_L":self.v_sky_L.get(),"sky_RGB":self.v_sky_RGB.get(),"sky_NB12":self.v_sky_NB12.get(),"sky_NB7":self.v_sky_NB7.get(),"sky_NB3":self.sky_NB3,"rn":rn,"ge":ge,"dc":self.v_dc.get(),"bits":bits,"offset":off},
+                "approach1":{"sf":self.v_sf.get(),"median_SF3":target_median(3,rn,ge,off,bits),"median_SF10":target_median(10,rn,ge,off,bits)},
+                "approach2":{"noise_pct":npct,"c_factor":cf,"times":{fn:optimal_time(cf,rn,self._sky(sk)) for fn,sk in FILTERS}}
+            }
             path=filedialog.asksaveasfilename(defaultextension=".json",filetypes=[("JSON","*.json")],initialfile="exposure_results.json")
             if path:
                 with open(path,"w",encoding="utf-8") as f: json.dump(data,f,indent=2,ensure_ascii=False,default=str)
                 messagebox.showinfo("Export",f"{'Exporte' if self.lang=='fr' else 'Exported'}!\n{path}")
         except Exception as e: messagebox.showerror("Error",str(e))
 
+    def _import_settings(self):
+        try:
+            path=filedialog.askopenfilename(filetypes=[("JSON","*.json"),("All","*.*")])
+            if not path:
+                return
+            with open(path,"r",encoding="utf-8") as f:
+                data=json.load(f)
+            if not isinstance(data, dict):
+                messagebox.showerror("Import", self._t("import_err"))
+                return
+            # Support both direct settings and exported format with "settings" key
+            settings = data.get("settings", data)
+            self._apply_settings_dict(settings)
+            self._recalc()
+            messagebox.showinfo("Import", self._t("import_ok"))
+        except Exception:
+            messagebox.showerror("Import", self._t("import_err"))
+
     def _report_bug(self):
         from urllib.parse import quote
         last_err = _get_last_error()
         if not last_err:
             messagebox.showinfo(self._t("btn_bug"), self._t("bug_no_errors"))
-        # Truncate error for URL (max ~1500 chars to stay under URL limits)
         err_snippet = last_err[:1500] if last_err else "No automatic error logged."
         env_info = (
             f"- App version: {__version__}\n"
@@ -818,11 +954,15 @@ def main():
             from ctypes import windll; windll.shcore.SetProcessDpiAwareness(1)
         except Exception: pass
     root=tk.Tk()
-    # Set window / taskbar icon
+    # Set window / taskbar icon — try .ico on Windows, .png elsewhere
     try:
-        _icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logo-expo.png")
-        if os.path.isfile(_icon_path):
-            _icon = tk.PhotoImage(file=_icon_path)
+        if platform.system() == "Windows":
+            ico_path = _resource_path("logo-expo.ico")
+            if os.path.isfile(ico_path):
+                root.iconbitmap(ico_path)
+        png_path = _resource_path("logo-expo.png")
+        if os.path.isfile(png_path):
+            _icon = tk.PhotoImage(file=png_path)
             root.iconphoto(True, _icon)
     except Exception:
         pass

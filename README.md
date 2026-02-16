@@ -20,7 +20,7 @@
 
 - **Multi-filter support** — L, RGB, Narrowband 12 nm, 7 nm, 3 nm (NB3 = NB12/4, automatic)
 
-- **Interactive tools** — Comparison of two strategies, charts, tables, JSON export
+- **Interactive tools** — Comparison of two strategies, charts, tables, JSON export/import
 
 - **Bilingual** — Auto-detected English / Francais; switch with one click
 
@@ -30,11 +30,19 @@
 
 - **Bug reporting** — Automatic error logging + one-click bug report button that opens a pre-filled GitHub Issue
 
+- **Settings persistence** — All parameters auto-saved and restored on next launch; import/export settings as JSON
+
+- **Windows EXE** — Standalone `.exe` via PyInstaller, no Python installation needed
+
 ---
 
 ## Quick start
 
-### Windows
+### Windows (EXE — recommended)
+1. Download `ExposureCalculator.exe` from [Releases](https://github.com/ARP273-ROSE/exposure-calculator/releases)
+2. Double-click — no installation needed, no Python required
+
+### Windows (Python)
 1. Double-click `run.bat`
 2. If Python is missing, the script will try to install it via **winget** (Windows Package Manager)
 3. If winget is missing, you'll be guided to install it, then run `run.bat` again
@@ -107,10 +115,12 @@ exposure-calculator/
 ├── ExposureCalculator.py          # Main application (single-file)
 ├── ExposureCalculator_Manual.pdf  # Theory & user manual (PDF)
 ├── ExposureCalculator_Manual.tex  # LaTeX source for the manual
-├── logo-expo.png                  # Application icon (window + taskbar)
+├── logo-expo.png                  # Application icon (PNG)
+├── logo-expo.ico                  # Application icon (Windows ICO, multi-size)
+├── build.bat                      # Build script for Windows EXE (PyInstaller)
 ├── run.bat                        # Windows launcher (auto-install + auto-update)
 ├── run.sh                         # Linux/macOS launcher (auto-install + auto-update)
-├── .gitignore                     # Python cache exclusions
+├── .gitignore                     # Exclusions (build/, dist/, __pycache__/)
 ├── CLAUDE.md                      # Project memory for AI-assisted development
 └── README.md                      # This file
 ```
@@ -138,13 +148,17 @@ See the in-app Help tab or `ExposureCalculator_Manual.pdf` for full theory.
 
 ---
 
-## Export
+## Settings & Export
 
-Click **Export** to save parameters and results to JSON:
+**Auto-save**: All parameters are automatically saved to `~/.exposure_calc_settings.json` and restored on next launch.
 
+**Export**: Click **Export** to save parameters and results to JSON:
+- `settings`: all input parameters (importable)
 - `parameters`: sky levels, read noise, gain, dark current, bits, offset
 - `approach1`: swamp factor, medians at SF x3 and SF x10
 - `approach2`: noise %, C factor, optimal times per filter
+
+**Import**: Click **Import** to load parameters from a previously exported JSON file.
 
 ---
 
@@ -152,7 +166,7 @@ Click **Export** to save parameters and results to JSON:
 
 - **Theory & original spreadsheet:** (c) Benoit Saintot
 - **GUI & Python application:** NGC4565
-- **Version:** 1.04
+- **Version:** 1.05
 
 ---
 
