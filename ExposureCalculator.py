@@ -6,7 +6,7 @@ Ideal Sub-Exposure Time Calculator
 Cross-platform, auto-install, auto-language.
 """
 
-__version__ = "1.03"
+__version__ = "1.04"
 __author__ = "©Benoit_SAINTOT — GUI by NGC4565"
 
 import subprocess, sys, importlib, os, math, locale, platform, webbrowser, json, threading, re, traceback
@@ -817,7 +817,16 @@ def main():
         try:
             from ctypes import windll; windll.shcore.SetProcessDpiAwareness(1)
         except Exception: pass
-    root=tk.Tk(); app=App(root)
+    root=tk.Tk()
+    # Set window / taskbar icon
+    try:
+        _icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logo-expo.png")
+        if os.path.isfile(_icon_path):
+            _icon = tk.PhotoImage(file=_icon_path)
+            root.iconphoto(True, _icon)
+    except Exception:
+        pass
+    app=App(root)
     _check_for_update(root, app.lang)
     m=Path.home()/".exposure_calc_installed"
     if not m.exists():
