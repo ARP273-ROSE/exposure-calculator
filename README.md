@@ -106,6 +106,8 @@ The application stays up-to-date automatically with a two-level strategy:
 exposure-calculator/
 ├── ExposureCalculator.py          # Main application (single-file)
 ├── ExposureCalculator_Manual.pdf  # Theory & user manual (PDF)
+├── ExposureCalculator_Manual.tex  # LaTeX source for the manual
+├── logo-expo.png                  # Application icon (window + taskbar)
 ├── run.bat                        # Windows launcher (auto-install + auto-update)
 ├── run.sh                         # Linux/macOS launcher (auto-install + auto-update)
 ├── .gitignore                     # Python cache exclusions
@@ -150,7 +152,7 @@ Click **Export** to save parameters and results to JSON:
 
 - **Theory & original spreadsheet:** (c) Benoit Saintot
 - **GUI & Python application:** NGC4565
-- **Version:** 1.03
+- **Version:** 1.04
 
 ---
 
