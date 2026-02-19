@@ -9,3 +9,6 @@ __pycache__/
 build/
 dist/
 *.spec
+
+# AI context (local only)
+CLAUDE.md
