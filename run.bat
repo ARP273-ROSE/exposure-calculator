@@ -7,16 +7,25 @@ setlocal EnableDelayedExpansion
 where git >nul 2>&1
 if %ERRORLEVEL%==0 (
     if exist ".git" (
-        git fetch origin main >nul 2>&1
-        git reset --hard origin/main >nul 2>&1
+        git pull --ff-only origin main >nul 2>&1
     )
 )
 
 :: ========== Check Python ==========
+:: Try python in PATH - verify it's real (not Windows Store stub)
+set "PYTHON_FOUND="
 where python >nul 2>&1
-if %ERRORLEVEL%==0 goto :run_python
+if %ERRORLEVEL%==0 (
+    python -c "import sys; sys.exit(0 if sys.version_info >= (3,8) else 1)" >nul 2>&1
+    if !ERRORLEVEL!==0 set "PYTHON_FOUND=1"
+)
+if defined PYTHON_FOUND goto :run_python
+
 where pythonw >nul 2>&1
-if %ERRORLEVEL%==0 goto :run_python
+if %ERRORLEVEL%==0 (
+    pythonw -c "import sys" >nul 2>&1
+    if !ERRORLEVEL!==0 goto :run_python
+)
 
 :: Python not found - try to install via winget
 echo.
