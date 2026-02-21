@@ -5,8 +5,7 @@ cd "$(dirname "$0")"
 
 # ========== Auto-update from GitHub ==========
 if command -v git &>/dev/null && [ -d ".git" ]; then
-    git fetch origin main &>/dev/null || true
-    git reset --hard origin/main &>/dev/null || true
+    git pull --ff-only origin main &>/dev/null || true
 fi
 
 # ========== Check Python ==========
