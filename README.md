@@ -100,6 +100,22 @@ The application stays up-to-date automatically with a two-level strategy:
 
 ---
 
+## NAS Multi-PC Portability
+
+The project folder can live on a NAS or synced drive and be used from **multiple PCs** without conflict:
+
+- **Virtual environment** is created locally on each PC (`%LOCALAPPDATA%\ExposureCalculator\venv` on Windows, `$XDG_DATA_HOME/ExposureCalculator/venv` on Linux/macOS) — never inside the project folder.
+- **Launcher scripts** (`launch.bat` / `launch.sh`) detect Python, create the local venv, install dependencies from `requirements.txt`, and launch the app.
+- **Desktop shortcut** targets the launcher script, not a specific Python path — so it works regardless of where Python is installed on each PC.
+- **Icon** is copied locally for reliable display in Windows shortcuts from network paths.
+
+### First launch on a new PC
+1. Double-click `launch.bat` (Windows) or run `./launch.sh` (Linux/macOS)
+2. The venv is created automatically with all dependencies
+3. A desktop shortcut is offered on first run
+
+---
+
 ## Bug reporting
 
 **Automatic logging**: All unhandled errors are saved to `~/.exposure_calc_errors.log` with timestamp, version, OS, Python version, and full traceback. Log is auto-rotated at 500 KB.
@@ -114,14 +130,16 @@ The application stays up-to-date automatically with a two-level strategy:
 exposure-calculator/
 ├── ExposureCalculator.py          # Main application (single-file)
 ├── ExposureCalculator_Manual.pdf  # Theory & user manual (PDF)
-├── ExposureCalculator_Manual.tex  # LaTeX source for the manual
+├── shortcut_helper.py             # Desktop shortcut auto-creation (portable)
+├── requirements.txt               # Python dependencies
+├── launch.bat                     # Windows launcher (local venv, portable)
+├── launch.sh                      # Linux/macOS launcher (local venv, portable)
+├── run.bat                        # Legacy Windows launcher
+├── run.sh                         # Legacy Linux/macOS launcher
+├── build.bat                      # Build script for Windows EXE (PyInstaller)
 ├── logo-expo.png                  # Application icon (PNG)
 ├── logo-expo.ico                  # Application icon (Windows ICO, multi-size)
-├── build.bat                      # Build script for Windows EXE (PyInstaller)
-├── run.bat                        # Windows launcher (auto-install + auto-update)
-├── run.sh                         # Linux/macOS launcher (auto-install + auto-update)
 ├── .gitignore                     # Exclusions (build/, dist/, __pycache__/)
-├── CLAUDE.md                      # Project memory for AI-assisted development
 └── README.md                      # This file
 ```
 
