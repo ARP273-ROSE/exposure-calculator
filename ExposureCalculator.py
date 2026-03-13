@@ -6,7 +6,7 @@ Ideal Sub-Exposure Time Calculator
 Cross-platform, auto-install, auto-language.
 """
 
-__version__ = "2.0.0"
+__version__ = "2.0.1"
 __author__ = "©Benoit_SAINTOT — GUI by NGC4565"
 
 import subprocess, sys, importlib, os, math, locale, platform, webbrowser, json, threading, re, traceback
