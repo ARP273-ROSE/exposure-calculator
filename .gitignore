@@ -12,3 +12,9 @@ dist/
 
 # AI context (local only)
 CLAUDE.md
+
+# App data files (local only)
+.exposure_calc_settings.json
+.exposure_calc_errors.log
+.exposure_calc_installed
+_progress.json
