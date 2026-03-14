@@ -131,7 +131,7 @@ def _copy_icon_locally(icon_source: Path) -> Path:
     """
     if not icon_source.exists():
         return icon_source
-    local_dir = Path(os.environ.get("LOCALAPPDATA", "")) / "ExposureCalculator"
+    local_dir = Path(os.environ.get("APPDATA", "")) / "ExposureCalculator"
     if not local_dir.parent.exists():
         return icon_source
     try:
