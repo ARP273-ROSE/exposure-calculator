@@ -1,6 +1,6 @@
 # Exposure Time Calculator
 
-[![Python 3.7+](https://img.shields.io/badge/python-3.7+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)]()
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)]()
 
@@ -12,6 +12,8 @@
 
 ## Features
 
+### Calculation
+
 - **Two complementary approaches**
   - **Swamp Factor** (SF 3-10): target sky background median (ADU)
   - **Optimal time**: recommended sub-exposure per filter for an accepted additional noise %
@@ -22,15 +24,31 @@
 
 - **Interactive tools** — Comparison of two strategies, charts, tables, JSON export/import
 
+### Interface
+
+- **Modern PyQt6 GUI** — dark-themed tabbed interface (migrated from tkinter in v2.0.0)
+
 - **Bilingual** — Auto-detected English / Francais; switch with one click
 
-- **Zero-config install** — Run scripts auto-install Python and dependencies if missing
-
-- **Automatic updates** — Launchers silently pull the latest version via git; Python fallback checks GitHub in background
-
-- **Bug reporting** — Automatic error logging + one-click bug report button that opens a pre-filled GitHub Issue
-
 - **Settings persistence** — All parameters auto-saved and restored on next launch; import/export settings as JSON
+
+### Deployment & Updates
+
+- **Zero-config install** — Launcher scripts auto-create local venv and install dependencies
+
+- **NAS multi-PC portability** — Project folder can live on a NAS/synced drive; venv is created locally per PC, not in the project directory
+
+- **Automatic updates** — Background thread checks GitHub for newer version; Python fallback with download link
+
+- **Desktop shortcut** — Offered on first run; targets the launcher script for portability across PCs
+
+### Privacy & Reliability
+
+- **Anonymized bug reporting** — Error logs and bug reports automatically anonymize user paths (replaced with `~`) and omit specific OS version details
+
+- **Automatic error logging** — All unhandled errors saved to `.exposure_calc_errors.log` (in the program directory) with auto-rotation at 500 KB
+
+- **One-click bug report** — Red button opens a pre-filled GitHub Issue with anonymized environment info and last logged error
 
 - **Windows EXE** — Standalone `.exe` via PyInstaller, no Python installation needed
 
@@ -38,35 +56,29 @@
 
 ## Quick start
 
-### Windows (EXE — recommended)
+### Windows (Recommended — Launcher)
+1. Double-click `launch.bat`
+2. The venv is created automatically with all dependencies
+3. A desktop shortcut is offered on first run
+
+### Windows (EXE)
 1. Download `ExposureCalculator.exe` from [Releases](https://github.com/ARP273-ROSE/exposure-calculator/releases)
 2. Double-click — no installation needed, no Python required
 
-### Windows (Python)
-1. Double-click `run.bat`
-2. If Python is missing, the script will try to install it via **winget** (Windows Package Manager)
-3. If winget is missing, you'll be guided to install it, then run `run.bat` again
-
-### Linux
+### Linux / macOS
 ```bash
-chmod +x run.sh
-./run.sh
+chmod +x launch.sh
+./launch.sh
 ```
-Python 3 + tkinter will be installed automatically via your package manager if needed.
-
-### macOS
-```bash
-chmod +x run.sh
-./run.sh
-```
-Python will be installed via Homebrew if missing.
+The venv is created automatically with all dependencies.
 
 ---
 
 ## Requirements
 
-- **Python 3.7+** (with tkinter; usually bundled with Python on Windows/Linux)
-- **matplotlib** — installed automatically on first run
+- **Python 3.8+**
+- **PyQt6** — installed automatically by the launcher
+- **matplotlib** — installed automatically by the launcher
 
 ---
 
@@ -82,24 +94,6 @@ Only the yellow input fields need to be edited; results update automatically.
 
 ---
 
-## Automatic updates
-
-The application stays up-to-date automatically with a two-level strategy:
-
-| Method | When | How |
-|--------|------|-----|
-| **Launchers** (`run.bat` / `run.sh`) | Every launch | Silent `git fetch` + `git reset --hard origin/main` before starting Python |
-| **Python fallback** | Direct `python ExposureCalculator.py` | Background thread checks remote `__version__` via GitHub, updates if newer |
-
-| Scenario | Behavior |
-|----------|----------|
-| Git + internet | Launcher updates silently, app starts up-to-date |
-| No git | Launcher block skipped, Python shows download link |
-| No internet | `git fetch` fails silently, app starts normally |
-| Zip download (no .git) | `.git` check skips update, Python shows download link |
-
----
-
 ## NAS Multi-PC Portability
 
 The project folder can live on a NAS or synced drive and be used from **multiple PCs** without conflict:
@@ -108,6 +102,7 @@ The project folder can live on a NAS or synced drive and be used from **multiple
 - **Launcher scripts** (`launch.bat` / `launch.sh`) detect Python, create the local venv, install dependencies from `requirements.txt`, and launch the app.
 - **Desktop shortcut** targets the launcher script, not a specific Python path — so it works regardless of where Python is installed on each PC.
 - **Icon** is copied locally for reliable display in Windows shortcuts from network paths.
+- **App data** (settings, error log) is stored alongside the script in the project directory, so it follows the code across machines.
 
 ### First launch on a new PC
 1. Double-click `launch.bat` (Windows) or run `./launch.sh` (Linux/macOS)
@@ -116,22 +111,40 @@ The project folder can live on a NAS or synced drive and be used from **multiple
 
 ---
 
-## Bug reporting
+## Bug Reporting
 
-**Automatic logging**: All unhandled errors are saved to `~/.exposure_calc_errors.log` with timestamp, version, OS, Python version, and full traceback. Log is auto-rotated at 500 KB.
+**Automatic logging**: All unhandled errors are saved to `.exposure_calc_errors.log` (in the program directory) with timestamp, version, OS, Python version, and full traceback. Log is auto-rotated at 500 KB. **User paths are automatically anonymized** (replaced with `~`) for privacy.
 
-**Manual report**: Click the red **"Report a bug"** / **"Signaler un bug"** button. A GitHub Issue opens pre-filled with your environment and the last logged error. Just describe the problem and submit.
+**Manual report**: Click the red **"Report a bug"** / **"Signaler un bug"** button. A GitHub Issue opens pre-filled with your anonymized environment info and the last logged error. Just describe the problem and submit.
 
 ---
 
-## Project structure
+## Automatic Updates
+
+The application checks for updates via a background thread:
+
+| Method | When | How |
+|--------|------|-----|
+| **Launcher** (`launch.bat` / `launch.sh`) | Every launch | Detects Python, ensures venv, installs deps |
+| **Python fallback** | Direct `python ExposureCalculator.py` | Background thread checks remote `__version__` via GitHub, updates if newer |
+
+| Scenario | Behavior |
+|----------|----------|
+| Git + internet | Auto-update via `git pull --ff-only`, restart message shown |
+| No git | Python shows download link |
+| No internet | App starts normally, no notification |
+| Zip download (no .git) | `.git` check skips update, Python shows download link |
+
+---
+
+## Project Structure
 
 ```
 exposure-calculator/
-├── ExposureCalculator.py          # Main application (single-file)
+├── ExposureCalculator.py          # Main application (single-file, PyQt6)
 ├── ExposureCalculator_Manual.pdf  # Theory & user manual (PDF)
 ├── shortcut_helper.py             # Desktop shortcut auto-creation (portable)
-├── requirements.txt               # Python dependencies
+├── requirements.txt               # Python dependencies (PyQt6, matplotlib)
 ├── launch.bat                     # Windows launcher (local venv, portable)
 ├── launch.sh                      # Linux/macOS launcher (local venv, portable)
 ├── run.bat                        # Legacy Windows launcher
@@ -142,6 +155,20 @@ exposure-calculator/
 ├── .gitignore                     # Exclusions (build/, dist/, __pycache__/)
 └── README.md                      # This file
 ```
+
+---
+
+## Settings & Export
+
+**Auto-save**: All parameters are automatically saved to `.exposure_calc_settings.json` (in the program directory) and restored on next launch.
+
+**Export**: Click **Export** to save parameters and results to JSON:
+- `settings`: all input parameters (importable)
+- `parameters`: sky levels, read noise, gain, dark current, bits, offset
+- `approach1`: swamp factor, medians at SF x3 and SF x10
+- `approach2`: noise %, C factor, optimal times per filter
+
+**Import**: Click **Import** to load parameters from a previously exported JSON file.
 
 ---
 
@@ -166,25 +193,11 @@ See the in-app Help tab or `ExposureCalculator_Manual.pdf` for full theory.
 
 ---
 
-## Settings & Export
-
-**Auto-save**: All parameters are automatically saved to `~/.exposure_calc_settings.json` and restored on next launch.
-
-**Export**: Click **Export** to save parameters and results to JSON:
-- `settings`: all input parameters (importable)
-- `parameters`: sky levels, read noise, gain, dark current, bits, offset
-- `approach1`: swamp factor, medians at SF x3 and SF x10
-- `approach2`: noise %, C factor, optimal times per filter
-
-**Import**: Click **Import** to load parameters from a previously exported JSON file.
-
----
-
 ## Credits
 
 - **Theory & original spreadsheet:** (c) Benoit Saintot
 - **GUI & Python application:** NGC4565
-- **Version:** 1.05
+- **Version:** 2.0.2
 
 ---
 
