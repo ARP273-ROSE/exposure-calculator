@@ -10,6 +10,9 @@ build/
 dist/
 *.spec
 
+# LaTeX source (only PDF is committed)
+*.tex
+
 # AI context (local only)
 CLAUDE.md
 

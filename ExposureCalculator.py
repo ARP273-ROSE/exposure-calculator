@@ -6,7 +6,7 @@ Ideal Sub-Exposure Time Calculator
 Cross-platform, auto-install, auto-language.
 """
 
-__version__ = "2.0.1"
+__version__ = "2.0.2"
 __author__ = "©Benoit_SAINTOT — GUI by NGC4565"
 
 import subprocess, sys, importlib, os, math, locale, platform, webbrowser, json, threading, re, traceback
@@ -26,6 +26,17 @@ _APP_DIR = Path(__file__).resolve().parent
 _LOG_PATH = _APP_DIR / ".exposure_calc_errors.log"
 _LOG_MAX_BYTES = 512_000  # 500 KB
 
+def _anonymize_path(text):
+    """Replace user home directory with ~ for anonymous error/bug reports."""
+    if not text:
+        return text
+    home = str(Path.home())
+    text = text.replace(home.replace("\\", "/"), "~")
+    text = text.replace(home, "~")
+    if sys.platform == "win32":
+        text = text.replace(home.lower(), "~")
+    return text
+
 def _log_error(exc_type=None, exc_value=None, exc_tb=None):
     try:
         if exc_type is None:
@@ -33,9 +44,10 @@ def _log_error(exc_type=None, exc_value=None, exc_tb=None):
         if exc_type is None:
             return
         tb_text = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
+        tb_text = _anonymize_path(tb_text)
         entry = (
             f"[{datetime.now().isoformat(timespec='seconds')}] "
-            f"v{__version__} | {platform.system()} {platform.release()} | "
+            f"v{__version__} | {platform.system()} | "
             f"Python {sys.version.split()[0]}\n{tb_text}\n"
         )
         if _LOG_PATH.exists() and _LOG_PATH.stat().st_size > _LOG_MAX_BYTES:
@@ -237,6 +249,7 @@ def _init_translations():
         "btn_bug": {"fr": "Signaler un bug", "en": "Report a bug"},
         "bug_no_errors": {"fr": "Aucune erreur enregistree. Si vous rencontrez un probleme, decrivez-le dans le rapport qui va s'ouvrir.",
                           "en": "No errors logged. If you have an issue, describe it in the report that will open."},
+        "bug_describe": {"fr": "Decrivez le probleme ici", "en": "Describe the problem here"},
         "update_available": {"fr": "Mise a jour disponible", "en": "Update available"},
         "update_restart": {"fr": "La version {v} a ete installee. Redemarrez l'application pour en profiter.",
                            "en": "Version {v} has been installed. Restart the application to use it."},
@@ -319,11 +332,15 @@ IV. SIGNALEMENT DE BUGS
       .exposure_calc_errors.log (dans le dossier du programme)
     Format : date, version, OS, Python, traceback complet.
     Le fichier est automatiquement tronque au-dela de 500 Ko.
+    Les chemins utilisateur sont anonymises (remplaces par ~)
+    pour proteger la vie privee.
 
   MANUEL:
     Cliquer sur le bouton rouge "Signaler un bug" dans la barre
     de boutons. Un rapport pre-rempli s'ouvre sur GitHub Issues
     avec l'environnement et la derniere erreur enregistree.
+    Les donnees sont anonymisees automatiquement (pas de
+    chemin personnel ni de version OS specifique).
     Il suffit de decrire le probleme et de valider.
 
 V. SAUVEGARDE DES REGLAGES
@@ -405,11 +422,14 @@ IV. BUG REPORTING
       .exposure_calc_errors.log (in the program directory)
     Format: date, version, OS, Python, full traceback.
     The file is automatically truncated beyond 500 KB.
+    User paths are anonymized (replaced with ~) for privacy.
 
   MANUAL:
     Click the red "Report a bug" button in the top bar.
     A pre-filled report opens on GitHub Issues with your
     environment info and the last logged error.
+    All data is automatically anonymized (no personal
+    paths or specific OS version).
     Just describe the problem and submit.
 
 V. SETTINGS PERSISTENCE
@@ -1394,18 +1414,18 @@ class ExposureCalculatorWindow(QMainWindow):
         last_err = _get_last_error()
         if not last_err:
             QMessageBox.information(self, self._t("btn_bug"), self._t("bug_no_errors"))
-        err_snippet = last_err[:1500] if last_err else "No automatic error logged."
+        err_snippet = _anonymize_path(last_err[:1500]) if last_err else "No automatic error logged."
         env_info = (
             f"- App version: {__version__}\n"
-            f"- OS: {platform.system()} {platform.release()} ({platform.machine()})\n"
+            f"- OS: {platform.system()} ({platform.machine()})\n"
             f"- Python: {sys.version.split()[0]}\n"
         )
         title = quote(f"[Bug] v{__version__} - ")
         body = quote(
             f"## Environment\n{env_info}\n"
-            f"## Description\n<!-- Describe the problem here -->\n\n"
+            f"## Description\n<!-- {self._t('bug_describe')} -->\n\n"
             f"## Steps to reproduce\n1. \n2. \n3. \n\n"
-            f"## Last error log\n```\n{err_snippet}\n```\n"
+            f"## Last error log (anonymized)\n```\n{err_snippet}\n```\n"
         )
         QDesktopServices.openUrl(QUrl(f"{_REPO_URL}/issues/new?title={title}&body={body}"))
 
